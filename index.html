@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scratch 程式邏輯探索儀表板</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&display=swap');
+        
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            background-color: #f5f5f4; /* Stone 100 - Warm neutral */
+            color: #1c1917; /* Stone 900 */
+        }
+
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 350px;
+            max-height: 400px;
+        }
+
+        /* Scratch-like Category Colors for UI elements */
+        .scratch-motion { border-left: 5px solid #4C97FF; }
+        .scratch-looks { border-left: 5px solid #9966FF; }
+        .scratch-sound { border-left: 5px solid #CF63CF; }
+        .scratch-events { border-left: 5px solid #FFBF00; }
+        .scratch-control { border-left: 5px solid #FFAB19; }
+        .scratch-sensing { border-left: 5px solid #5CB1D6; }
+        
+        .btn-motion { background-color: #4C97FF; }
+        .btn-looks { background-color: #9966FF; }
+        .btn-sound { background-color: #CF63CF; }
+        .btn-events { background-color: #FFBF00; color: black; }
+        .btn-control { background-color: #FFAB19; color: black; }
+        .btn-sensing { background-color: #5CB1D6; }
+
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+
+        .nav-active {
+            border-bottom: 2px solid #ea580c; /* Orange 600 */
+            color: #ea580c;
+            font-weight: 700;
+        }
+
+        .transition-all-300 {
+            transition: all 0.3s ease-in-out;
+        }
+
+        .animate-fade-in {
+            animation: fadeIn 0.4s ease-out forwards;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+    <!-- Chosen Palette: Warm Neutrals (Stone) with Scratch-specific functional accent colors -->
+    <!-- Application Structure Plan: 
+         1. Header: Simple title and navigation for SPA behavior.
+         2. Dashboard: Data visualization of the 20-question logic structure.
+         3. Knowledge Base: Interactive card library for non-linear learning.
+         4. Simulation: Linear quiz mode to validate understanding.
+         Chosen because it transforms static quiz data into an explorable educational dashboard.
+    -->
+    <!-- Visualization & Content Choices:
+         - Radar Chart (Chart.js): To show the distribution of logic categories (Motion, Control, etc.).
+         - Progress Feedback: Progress bars and icon systems for the quiz.
+         - Interactive Cards: To allow manual exploration of answers and rationale.
+         - CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. 
+    -->
+</head>
+<body class="min-h-screen flex flex-col">
+
+    <!-- Header -->
+    <header class="bg-white shadow-sm sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <div class="flex items-center">
+                    <span class="text-2xl font-bold text-stone-800">🐱 Scratch 邏輯實驗室</span>
+                </div>
+                <nav class="flex space-x-8">
+                    <button onclick="app.navigate('dashboard')" id="nav-dashboard" class="nav-active px-3 py-2 text-sm font-medium hover:text-orange-600 transition-colors">概覽儀表板</button>
+                    <button onclick="app.navigate('knowledge')" id="nav-knowledge" class="px-3 py-2 text-sm font-medium text-stone-500 hover:text-orange-600 transition-colors">知識探索</button>
+                    <button onclick="app.navigate('quiz')" id="nav-quiz" class="px-3 py-2 text-sm font-medium text-stone-500 hover:text-orange-600 transition-colors">實戰測驗</button>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
+
+        <!-- VIEW: DASHBOARD -->
+        <section id="view-dashboard" class="space-y-8 animate-fade-in">
+            <div class="bg-white rounded-xl p-6 shadow-sm border border-stone-200">
+                <div class="mb-6">
+                    <h2 class="text-xl font-bold mb-2">📊 知識結構分析</h2>
+                    <p class="text-stone-600">
+                        本儀表板分析了 Scratch 基礎能力測驗中的 <span class="font-bold text-orange-600">20</span> 個核心概念。透過下方的分佈圖，您可以觀察目前的學習範疇分佈，這有助於理解不同程式積木類別的比重。
+                    </p>
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+                    <div class="flex flex-col items-center">
+                        <div class="chart-container">
+                            <canvas id="categoryChart"></canvas>
+                        </div>
+                        <p class="text-xs text-stone-400 mt-2">圖表：各類別題目數量分佈 (20題)</p>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="bg-stone-50 p-4 rounded-lg border border-stone-100 text-center">
+                            <div class="text-3xl font-bold text-blue-500" id="stat-total">20</div>
+                            <div class="text-sm text-stone-500">總知識點</div>
+                        </div>
+                        <div class="bg-stone-50 p-4 rounded-lg border border-stone-100 text-center">
+                            <div class="text-3xl font-bold text-purple-500">6</div>
+                            <div class="text-sm text-stone-500">涵蓋類別</div>
+                        </div>
+                        <div class="bg-stone-50 p-4 rounded-lg border border-stone-100 text-center col-span-2">
+                            <div class="text-lg font-semibold text-stone-700">最新更新</div>
+                            <div class="text-sm text-stone-500 mt-1">已新增「分身產生」與「等待直到」邏輯</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div onclick="app.navigate('knowledge')" class="bg-gradient-to-br from-orange-50 to-white p-6 rounded-xl border border-orange-100 cursor-pointer hover:shadow-md transition-all-300">
+                    <h3 class="text-lg font-bold text-orange-800 mb-2">🔍 探索積木詳解</h3>
+                    <p class="text-sm text-stone-600">深入了解每一個積木背後的運作原理，包含 20 個關鍵知識卡片。</p>
+                </div>
+                <div onclick="app.navigate('quiz')" class="bg-gradient-to-br from-blue-50 to-white p-6 rounded-xl border border-blue-100 cursor-pointer hover:shadow-md transition-all-300">
+                    <h3 class="text-lg font-bold text-blue-800 mb-2">📝 開始模擬測驗</h3>
+                    <p class="text-sm text-stone-600">挑戰完整 20 道題目，即時檢測你的 Scratch 觀念是否正確。</p>
+                </div>
+                <div class="bg-white p-6 rounded-xl border border-stone-200">
+                    <h3 class="text-lg font-bold text-stone-800 mb-2">💡 學習提示</h3>
+                    <p class="text-sm text-stone-600">如果雷達圖在某一類別較突出，代表該類別包含較多進階邏輯細節。</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- VIEW: KNOWLEDGE BASE -->
+        <section id="view-knowledge" class="hidden space-y-6">
+            <div class="flex flex-col md:flex-row justify-between items-center gap-4 mb-6">
+                <div>
+                    <h2 class="text-xl font-bold">📚 知識探索庫</h2>
+                    <p class="text-sm text-stone-500 mt-1">本節收錄 20 個知識點。點擊卡片可查看詳細解析。</p>
+                </div>
+                
+                <div class="flex flex-wrap gap-2" id="filter-container">
+                    <button onclick="app.filterKnowledge('all')" class="px-3 py-1 rounded-full text-xs font-bold bg-stone-800 text-white hover:opacity-80 transition-opacity">全部</button>
+                    <button onclick="app.filterKnowledge('Motion')" class="px-3 py-1 rounded-full text-xs font-bold btn-motion text-white hover:opacity-80 transition-opacity">動作</button>
+                    <button onclick="app.filterKnowledge('Looks')" class="px-3 py-1 rounded-full text-xs font-bold btn-looks text-white hover:opacity-80 transition-opacity">外觀</button>
+                    <button onclick="app.filterKnowledge('Sound')" class="px-3 py-1 rounded-full text-xs font-bold btn-sound text-white hover:opacity-80 transition-opacity">音效</button>
+                    <button onclick="app.filterKnowledge('Events')" class="px-3 py-1 rounded-full text-xs font-bold btn-events hover:opacity-80 transition-opacity">事件</button>
+                    <button onclick="app.filterKnowledge('Control')" class="px-3 py-1 rounded-full text-xs font-bold btn-control hover:opacity-80 transition-opacity">控制</button>
+                    <button onclick="app.filterKnowledge('Sensing')" class="px-3 py-1 rounded-full text-xs font-bold btn-sensing text-white hover:opacity-80 transition-opacity">偵測</button>
+                </div>
+            </div>
+
+            <div id="knowledge-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+        </section>
+
+        <!-- VIEW: QUIZ SIMULATOR -->
+        <section id="view-quiz" class="hidden max-w-3xl mx-auto">
+            <div class="bg-white rounded-2xl shadow-lg overflow-hidden border border-stone-200">
+                <div class="bg-stone-800 text-white p-6 flex justify-between items-center">
+                    <div>
+                        <h2 class="text-xl font-bold">🚀 基礎能力檢定</h2>
+                        <p class="text-stone-400 text-sm mt-1">請回答以下 20 道題目</p>
+                    </div>
+                    <div class="text-2xl font-mono" id="quiz-progress">1 / 20</div>
+                </div>
+
+                <div class="p-8">
+                    <div class="w-full bg-stone-200 rounded-full h-2.5 mb-8">
+                        <div id="progress-bar" class="bg-orange-500 h-2.5 rounded-full transition-all duration-500" style="width: 5%"></div>
+                    </div>
+
+                    <div id="quiz-content" class="min-h-[300px]">
+                        <h3 id="question-text" class="text-xl font-semibold text-stone-800 mb-6 leading-relaxed">載入中...</h3>
+                        <div id="options-container" class="space-y-3"></div>
+                    </div>
+
+                    <div id="feedback-area" class="hidden mt-6 p-4 rounded-lg bg-stone-50 border border-stone-200 animate-fade-in">
+                        <div class="flex items-start gap-3">
+                            <span id="feedback-icon" class="text-2xl">💡</span>
+                            <div>
+                                <h4 id="feedback-title" class="font-bold text-stone-800">解析</h4>
+                                <p id="feedback-text" class="text-stone-600 text-sm mt-1"></p>
+                            </div>
+                        </div>
+                        <button onclick="app.nextQuestion()" class="mt-4 px-6 py-2 bg-stone-800 text-white rounded-lg hover:bg-stone-700 transition-colors text-sm font-medium w-full sm:w-auto">
+                            下一題 ➜
+                        </button>
+                    </div>
+
+                    <div id="result-area" class="hidden text-center py-10">
+                        <div class="text-6xl mb-4">🏆</div>
+                        <h3 class="text-2xl font-bold text-stone-800 mb-2">測驗完成！</h3>
+                        <p class="text-stone-600 mb-8">你的得分：<span id="final-score" class="text-orange-600 font-bold text-3xl">0</span> / 20</p>
+                        
+                        <div class="flex justify-center gap-4">
+                            <button onclick="app.resetQuiz()" class="px-6 py-3 bg-stone-800 text-white rounded-lg hover:bg-stone-700 transition-colors shadow-md">重新測驗</button>
+                            <button onclick="app.navigate('dashboard')" class="px-6 py-3 bg-white text-stone-800 border border-stone-300 rounded-lg hover:bg-stone-50 transition-colors shadow-sm">返回儀表板</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <footer class="bg-white border-t border-stone-200 mt-auto py-6">
+        <div class="max-w-7xl mx-auto px-4 text-center text-stone-400 text-sm">
+            <p>Scratch 程式基礎互動教學模組 • 共收錄 20 題核心邏輯測驗</p>
+        </div>
+    </footer>
+
+    <script>
+        const quizData = [
+            { id: 1, category: "Motion", question: "在 Scratch 的「動作」積木中，若想讓角色面朝右方，應該將「面朝方向」設定為幾度？", options: [{ text: "0 度", correct: false }, { text: "90 度", correct: true }, { text: "180 度", correct: false }, { text: "-90 度", correct: false }], rationale: "在 Scratch 座標系中，90 度代表水平向右，0 度向上，180 度向下，-90 度向左。", hint: "想像時鐘指針，3點鐘方向。" },
+            { id: 2, category: "Motion", question: "「滑行 1 秒到隨機位置」與「移到隨機位置」積木的主要區別是什麼？", options: [{ text: "滑行積木有移動過程，移到積木是瞬間跳轉", correct: true }, { text: "滑行只能去滑鼠位置", correct: false }, { text: "移到積木會改變方向", correct: false }, { text: "滑行積木可設座標，移到不行", correct: false }], rationale: "滑行 (Glide) 會計算路徑並顯示動畫，移到 (Go to) 是瞬間位移。", hint: "觀察是慢慢動還是瞬間閃現。" },
+            { id: 3, category: "Motion", question: "如果想要角色在碰到舞台邊緣時自動反彈，應該使用哪一個積木？", options: [{ text: "旋轉 15 度", correct: false }, { text: "碰到邊緣就反彈", correct: true }, { text: "移到 x:0 y:0", correct: false }, { text: "下一造型", correct: false }], rationale: "「碰到邊緣就反彈」積木專門用於檢查座標是否越界並執行反向動作。", hint: "專門處理 Edge 的積木。" },
+            { id: 4, category: "Looks", question: "「說出 Hello!」與「說出 Hello! 持續 2 秒」積木最大的差別在於：", options: [{ text: "前者不會消失，後者 2 秒後消失並繼續執行", correct: true }, { text: "字體大小不同", correct: false }, { text: "前者有聲音", correct: false }, { text: "語言限制不同", correct: false }], rationale: "含時間的積木有「等待」效果且會自動清除對話框；不含時間的會常駐顯示。", hint: "注意流程順序與停留時間。" },
+            { id: 5, category: "Looks", question: "若想將角色的顏色變淡甚至變透明，應調整「外觀」類別中的哪一種效果？", options: [{ text: "顏色 (Color)", correct: false }, { text: "魚眼 (Fisheye)", correct: false }, { text: "亮度 (Brightness)", correct: false }, { text: "幻影 (Ghost)", correct: true }], rationale: "幻影 (Ghost) 效果控制透明度，值越高越透明，100 為完全隱形。", hint: "跟幽靈有關。" },
+            { id: 6, category: "Looks", question: "想要將角色的大小立刻恢復為原始的 100%，應使用哪一個積木？", options: [{ text: "尺寸改變 10", correct: false }, { text: "尺寸設定為 100 %", correct: true }, { text: "顯示", correct: false }, { text: "清除圖像效果", correct: false }], rationale: "「設定為 (Set)」是指定絕對值，「改變 (Change)」是相對增減。", hint: "改變 vs 設定。" },
+            { id: 7, category: "Sound", question: "「播放音效 Meow」與「播放音效 Meow 直到結束」有什麼區別？", options: [{ text: "前者卡住程式", correct: false }, { text: "後者會等待聲音播完才執行下一個積木", correct: true }, { text: "音量不同", correct: false }, { text: "無區別", correct: false }], rationale: "「直到結束」是同步指令，程式會暫停直到音訊播畢。", hint: "思考背景音樂與程式執行的關係。" },
+            { id: 8, category: "Sound", question: "如何讓所有的音效立即安靜下來？", options: [{ text: "音量設定為 0 %", correct: false }, { text: "停止所有音效", correct: true }, { text: "音速改變 -10", correct: false }, { text: "隱藏", correct: false }], rationale: "「停止所有音效」會立即切斷所有正在播放的聲音軌道。", hint: "帶有 Stop 含義的積木。" },
+            { id: 9, category: "Events", question: "在「事件」類別中，哪一個積木最常用來當作程式的啟動總開關？", options: [{ text: "當空白鍵被按下", correct: false }, { text: "當角色被點擊", correct: false }, { text: "當 綠旗 被點擊", correct: true }, { text: "當背景換成...", correct: false }], rationale: "綠旗是 Scratch 預設的標準程式啟動點。", hint: "舞台上方的綠色圖示。" },
+            { id: 10, category: "Events", question: "「廣播訊息」積木的功能主要是什麼？", options: [{ text: "發出喇叭聲", correct: false }, { text: "顯示跑馬燈", correct: false }, { text: "角色間的溝通與連動觸發", correct: true }, { text: "改變顏色", correct: false }], rationale: "廣播 (Broadcast) 是用於角色間傳遞訊號與觸發事件的機制。", hint: "大喊一聲讓別人聽到。" },
+            { id: 11, category: "Control", question: "若想讓一個動作重複執行 10 次後停止，應該使用哪一個控制積木？", options: [{ text: "重複執行", correct: false }, { text: "重複 10 次", correct: true }, { text: "如果...那麼", correct: false }, { text: "等待 10 秒", correct: false }], rationale: "「重複 N 次」積木是計數迴圈，執行指定次數後結束。", hint: "名稱包含具體次數。" },
+            { id: 12, category: "Control", question: "「如果...那麼...否則...」與「如果...那麼...」的主要差異是：", options: [{ text: "「否則」部分在條件不成立時執行", correct: true }, { text: "判斷類型不同", correct: false }, { text: "速度不同", correct: false }, { text: "強制停止", correct: false }], rationale: "雙向選擇結構 (If-Else) 確保條件成立與否都有對應動作。", hint: "下雨帶傘，沒下雨戴帽。" },
+            { id: 13, category: "Control", question: "如果想要在 Scratch 程式中暫停一下，等待 500 毫秒，應該在「等待」積木輸入多少？", options: [{ text: "500", correct: false }, { text: "0.5", correct: true }, { text: "5", correct: false }, { text: "0.05", correct: false }], rationale: "Scratch 時間單位為秒。500 毫秒 = 0.5 秒。", hint: "單位是秒，善用小數點。" },
+            { id: 14, category: "Control", question: "「停止所有」積木放在程式中會產生什麼結果？", options: [{ text: "只停止目前角色", correct: false }, { text: "畫面變黑", correct: false }, { text: "整個專案所有腳本立即停止", correct: true }, { text: "暫停 1 秒", correct: false }], rationale: "這是全域終止指令，等同於按下紅色停止鈕。", hint: "影響範圍是整個專案。" },
+            { id: 15, category: "Sensing", question: "如何偵測角色是否碰到了特定的另一位角色（例如「Sprite2」）？", options: [{ text: "使用「碰到 滑鼠指標?」並選單改為「Sprite2」", correct: true }, { text: "距離 < 10", correct: false }, { text: "顏色碰到", correct: false }, { text: "當角色被點擊", correct: false }], rationale: "「碰到...」積木可透過下拉選單選擇其他角色、邊緣或滑鼠。", hint: "偵測類最頂端的積木。" },
+            { id: 16, category: "Sensing", question: "若要檢查「空白鍵」目前是否正被按下，應使用哪一類積木？", options: [{ text: "事件", correct: false }, { text: "偵測 (Sensing)", correct: true }, { text: "控制", correct: false }, { text: "外觀", correct: false }], rationale: "偵測類的「鍵...被按下?」回傳布林值，適合用於迴圈判斷；事件類則是觸發型。", hint: "持續檢查狀態 vs 觸發。" },
+            { id: 17, category: "Control", question: "想要製作一個追蹤滑鼠的遊戲，應該組合哪兩個積木最適合？", options: [{ text: "「重複執行」+「面朝滑鼠」+「移動」", correct: true }, { text: "如果碰到滑鼠 + 說話", correct: false }, { text: "綠旗 + 移到隨機", correct: false }, { text: "等待 + 下一造型", correct: false }], rationale: "無限迴圈配合持續的面朝與移動指令，可達成流暢追蹤效果。", hint: "不斷轉向並前進。" },
+            { id: 18, category: "Motion", question: "如果想要檢測角色目前所在的 x 座標是否大於 100，該去哪裡找 x 座標這個圓形積木？", options: [{ text: "外觀", correct: false }, { text: "偵測", correct: false }, { text: "動作 (Motion)", correct: true }, { text: "事件", correct: false }], rationale: "自身的位置資訊 (x, y, 方向) 位於動作類別底部。", hint: "跟移動相關的屬性。" },
+            { id: 19, category: "Control", question: "在 Scratch 中，「等待直到...」積木與「等待 1 秒」積木的主要區別為何？", options: [{ text: "前者根據條件成立才繼續，後者根據固定時間", correct: true }, { text: "前者只能放在迴圈內", correct: false }, { text: "後者可以讓程式永久停止", correct: false }, { text: "兩者功能完全相同", correct: false }], rationale: "「等待直到...」會暫停腳本直到內部的布林值條件為「真」；「等待」則是單純的時間延遲。", hint: "一個是看事件發生，一個是看時鐘。" },
+            { id: 20, category: "Control", question: "關於「當分身產生」積木，下列敘述何者正確？", options: [{ text: "它可以用來控制本體的所有動作", correct: false }, { text: "只有執行「建立分身」後，分身才會執行其下方的指令", correct: true }, { text: "點擊綠旗後分身會自動產生", correct: false }, { text: "分身產生後無法被刪除", correct: false }], rationale: "「當分身產生」是分身的啟動事件，必須先由程式觸發「建立分身」指令才會執行。", hint: "分身需要有人「施法」才會出現。" }
+        ];
+
+        const app = {
+            currentView: 'dashboard',
+            currentQuizIndex: 0,
+            score: 0,
+            quizFinished: false,
+
+            init: function() {
+                this.renderChart();
+                this.renderKnowledgeGrid('all');
+                this.updateNav();
+            },
+
+            navigate: function(viewId) {
+                ['dashboard', 'knowledge', 'quiz'].forEach(id => {
+                    document.getElementById(`view-${id}`).classList.add('hidden');
+                    document.getElementById(`nav-${id}`).classList.remove('nav-active', 'text-orange-600');
+                    document.getElementById(`nav-${id}`).classList.add('text-stone-500');
+                });
+                document.getElementById(`view-${viewId}`).classList.remove('hidden');
+                document.getElementById(`nav-${viewId}`).classList.add('nav-active', 'text-orange-600');
+                document.getElementById(`nav-${viewId}`).classList.remove('text-stone-500');
+                this.currentView = viewId;
+                if(viewId === 'quiz' && this.currentQuizIndex === 0 && !this.quizFinished) {
+                    this.renderQuestion();
+                }
+                window.scrollTo(0, 0);
+            },
+
+            renderChart: function() {
+                const ctx = document.getElementById('categoryChart').getContext('2d');
+                const categories = {};
+                quizData.forEach(q => { categories[q.category] = (categories[q.category] || 0) + 1; });
+                const labels = ["Motion", "Looks", "Sound", "Events", "Control", "Sensing"];
+                const data = labels.map(l => categories[l] || 0);
+                new Chart(ctx, {
+                    type: 'radar',
+                    data: {
+                        labels: labels.map(l => {
+                            const map = {Motion:'動作', Looks:'外觀', Sound:'音效', Events:'事件', Control:'控制', Sensing:'偵測'};
+                            return map[l] || l;
+                        }),
+                        datasets: [{
+                            label: '知識分佈',
+                            data: data,
+                            backgroundColor: 'rgba(234, 88, 12, 0.2)',
+                            borderColor: 'rgba(234, 88, 12, 1)',
+                            pointBackgroundColor: ['#4C97FF', '#9966FF', '#CF63CF', '#FFBF00', '#FFAB19', '#5CB1D6'],
+                            borderWidth: 2
+                        }]
+                    },
+                    options: { maintainAspectRatio: false, scales: { r: { beginAtZero: true, max: 6, ticks: { stepSize: 1 } } }, plugins: { legend: { display: false } } }
+                });
+            },
+
+            filterKnowledge: function(category) { this.renderKnowledgeGrid(category); },
+
+            renderKnowledgeGrid: function(filter) {
+                const grid = document.getElementById('knowledge-grid');
+                grid.innerHTML = '';
+                const filteredData = filter === 'all' ? quizData : quizData.filter(q => q.category === filter);
+                filteredData.forEach(item => {
+                    const catClass = `scratch-${item.category.toLowerCase()}`;
+                    const categoryChinese = {Motion:'動作', Looks:'外觀', Sound:'音效', Events:'事件', Control:'控制', Sensing:'偵測'}[item.category] || item.category;
+                    const card = document.createElement('div');
+                    card.className = `glass-panel rounded-xl p-6 ${catClass} hover:shadow-lg transition-all cursor-pointer group`;
+                    card.onclick = () => {
+                        card.querySelector('.card-content').classList.toggle('hidden');
+                        card.querySelector('.card-answer').classList.toggle('hidden');
+                    };
+                    const correctOption = item.options.find(o => o.correct).text;
+                    card.innerHTML = `
+                        <div class="flex justify-between items-start mb-4">
+                            <span class="text-xs font-bold px-2 py-1 bg-stone-100 rounded text-stone-600">${categoryChinese}</span>
+                            <span class="text-xs text-stone-400">#${item.id}</span>
+                        </div>
+                        <div class="card-content">
+                            <h3 class="font-medium text-lg text-stone-800 mb-2">${item.question}</h3>
+                            <p class="text-sm text-stone-500 mt-4 group-hover:text-orange-500 transition-colors">👆 點擊查看答案與解析</p>
+                        </div>
+                        <div class="card-answer hidden animate-fade-in">
+                            <p class="text-sm font-bold text-green-600 mb-2">正確答案：${correctOption}</p>
+                            <p class="text-sm text-stone-600 leading-relaxed bg-stone-50 p-3 rounded border border-stone-100">${item.rationale}</p>
+                        </div>
+                    `;
+                    grid.appendChild(card);
+                });
+            },
+
+            renderQuestion: function() {
+                if (this.currentQuizIndex >= quizData.length) { this.finishQuiz(); return; }
+                const q = quizData[this.currentQuizIndex];
+                document.getElementById('quiz-progress').innerText = `${this.currentQuizIndex + 1} / ${quizData.length}`;
+                document.getElementById('progress-bar').style.width = `${((this.currentQuizIndex) / quizData.length) * 100}%`;
+                document.getElementById('question-text').innerText = q.question;
+                const optsContainer = document.getElementById('options-container');
+                optsContainer.innerHTML = '';
+                document.getElementById('feedback-area').classList.add('hidden');
+                q.options.forEach((opt) => {
+                    const btn = document.createElement('button');
+                    btn.className = "w-full text-left p-4 rounded-xl border border-stone-200 hover:bg-stone-50 transition-colors flex items-center group";
+                    btn.innerHTML = `<div class="w-6 h-6 rounded-full border-2 border-stone-300 mr-4 flex items-center justify-center group-hover:border-orange-500"><div class="w-2.5 h-2.5 rounded-full bg-orange-500 opacity-0 group-hover:opacity-100 transition-opacity"></div></div><span class="text-stone-700 font-medium">${opt.text}</span>`;
+                    btn.onclick = () => this.checkAnswer(opt, q, btn);
+                    optsContainer.appendChild(btn);
+                });
+            },
+
+            checkAnswer: function(selectedOpt, questionObj, btnElement) {
+                const allBtns = document.getElementById('options-container').children;
+                for(let btn of allBtns) { btn.disabled = true; btn.classList.add('opacity-60', 'cursor-not-allowed'); }
+                const feedbackArea = document.getElementById('feedback-area');
+                const feedbackTitle = document.getElementById('feedback-title');
+                feedbackArea.classList.remove('hidden');
+                document.getElementById('feedback-text').innerText = questionObj.rationale;
+                if (selectedOpt.correct) {
+                    this.score++;
+                    btnElement.classList.replace('border-stone-200', 'border-green-500');
+                    btnElement.classList.add('bg-green-50');
+                    feedbackTitle.innerText = "答對了！";
+                    feedbackTitle.className = "font-bold text-green-700";
+                    document.getElementById('feedback-icon').innerText = "✅";
+                } else {
+                    btnElement.classList.replace('border-stone-200', 'border-red-500');
+                    btnElement.classList.add('bg-red-50');
+                    feedbackTitle.innerText = "答錯了";
+                    feedbackTitle.className = "font-bold text-red-700";
+                    document.getElementById('feedback-icon').innerText = "❌";
+                }
+            },
+
+            nextQuestion: function() { this.currentQuizIndex++; this.renderQuestion(); },
+            finishQuiz: function() {
+                this.quizFinished = true;
+                document.getElementById('quiz-content').classList.add('hidden');
+                document.getElementById('feedback-area').classList.add('hidden');
+                document.getElementById('result-area').classList.remove('hidden');
+                document.getElementById('final-score').innerText = this.score;
+                document.getElementById('progress-bar').style.width = '100%';
+            },
+            resetQuiz: function() {
+                this.currentQuizIndex = 0; this.score = 0; this.quizFinished = false;
+                document.getElementById('quiz-content').classList.remove('hidden');
+                document.getElementById('result-area').classList.add('hidden');
+                this.renderQuestion();
+            },
+            updateNav: function() { this.navigate('dashboard'); }
+        };
+
+        window.onload = () => app.init();
+    </script>
+</body>
+</html>
